@@ -4,6 +4,8 @@ import requests
 from bs4 import BeautifulSoup
 import cloudscraper
 import math
+from keyboa import Keyboa
+
 
 with open("key.txt", "r") as f:
     API_key =f.read()
@@ -12,22 +14,50 @@ cache = [""] #cache of user results
 cached_keyword = ""
 
 
+@bot.message_handler(commands=['start','help'])
+def start(message):
+    print("Start message from "+str(message.from_user.id)+" - " + message.text)
+    bot.send_message(message.from_user.id,"Enter search text")
+
 @bot.message_handler(content_types=['text'])
-
-
 def get_text_messages(message):
     print("message from "+str(message.from_user.id)+" - " + message.text)
+    answerMsg(message.text, message.from_user.id)
     #bot.send_message(message.from_user.id, searchExploit(message), parse_mode="html")
     #return
+
+def answerMsg(text, user_id):
+    #if True:
     try:
-        bot.send_message(message.from_user.id, searchExploit(message), parse_mode="html")
+        answer = searchExploit(text)
+        btns = []
+        if len(answer)>1:
+            if answer[2]>1:
+                i = 0
+                print(type(answer[1]))
+                if answer[1] > 1:
+                    btns.append({'text': '< Page '+str(answer[1]-1), 'callback_data': text.split('|')[0]+"|"+str(answer[1]-1)})
+                    i +=1
+                if answer[1] < answer[2]:
+                    btns.append({'text': 'Page '+str(answer[1]+1)+' >', 'callback_data': text.split('|')[0]+"|"+str(answer[1]+1)})
+                    i +=1
+                kb_btns = Keyboa(items=btns, items_in_row=i)
+                bot.send_message(user_id, answer[0], parse_mode="html", reply_markup = kb_btns())
+                return
+    #try:
+        bot.send_message(user_id, answer[0], parse_mode="html")
     except:
-        bot.send_message(message.from_user.id, "Something went wrong")
+        bot.send_message(user_id, "Something went wrong")
+@bot.callback_query_handler(func=lambda call: True)
+def test_callback(call): # <- passes a CallbackQuery type object to your function
+    print(call.data)
+    answerMsg(str(call.data), call.from_user.id)
+
 
 def get_from_cache(page_num):
     global cache
     if len(cache) ==0:
-        return "No records found"
+        return ["No records found"]
     if (page_num<1) | ((len(cache)-(page_num-1)*10)<1):
         page_num=1
     i=0
@@ -39,22 +69,22 @@ def get_from_cache(page_num):
         results += element
         i +=1
         if i > 9:
-            return results
-    return results
+            return [results,page_num,total]
+    return [results,page_num,total]
 
 
 
 
-def searchExploit(message):
+def searchExploit(searchTxt):
     global cached_keyword
     global cache
     page_num = 1
-    if len(message.text.split("|"))>1 :
-        if  message.text.split("|")[1].isnumeric() :
-            page_num = int(message.text.split("|")[1])
-    searchstr = message.text.split("|")[0].strip()
+    if len(searchTxt.split("|"))>1 :
+        if  searchTxt.split("|")[1].isnumeric() :
+            page_num = int(searchTxt.split("|")[1])
+    searchstr = searchTxt.split("|")[0].strip()
     if searchstr=="":
-        return "No records found"
+        return ["No records found"]
     results = ""
     if (searchstr == cached_keyword) :
         return get_from_cache(page_num)
@@ -67,7 +97,7 @@ def searchExploit(message):
     total = exploit_json.get("recordsTotal")
     print(total)
     if total==0:
-        return "No records fond"
+        return ["No records fond"]
     cached_keyword = searchstr
     cache.clear()
     i = 0
